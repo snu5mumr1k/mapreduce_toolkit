@@ -6,20 +6,20 @@ flags = " ".join([
     "-I src",
 ])
 
-debug = ARGUMENTS.get("debug", "")
-if debug == "true":
-    flags += " -O0"
-else:
-    flags += " -O2"
-
 def make_object(source):
     return env.Object(source, CCFLAGS=flags)
 
 objects = [make_object(source) for source in [
+    "src/basic/value.cpp",
     "src/core/map_reduce.cpp",
     "src/core/parser.cpp",
-    "src/basic/value.cpp",
+    "src/helpers/file.cpp",
     "src/helpers/validators.cpp",
+    "src/params.cpp",
+    "src/table/row.cpp",
+    "src/table/reader.cpp",
+    "src/table/writer.cpp",
+    "src/core/expression.cpp",
 ]]
 
 env.Program("bin/map", objects + make_object("src/map.cpp"))

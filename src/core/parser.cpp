@@ -50,36 +50,111 @@ std::unordered_set<char> Parser::to_wrap_{
     ';'
 };
 
-Parser::Parser()
-{}
-
-Parser::TokenizedString Parser::Parse(const std::string &input) {
+OperationDescription Parser::Parse(const std::string &input) {
     TokenizedString expression = Tokenize(input);
     if (!expression.empty()) {
-        switch (expression[0].type) {
+        state_.curr = expression.begin();
+        state_.end = expression.end();
+        switch (state_.curr++->type) {
             case Token::Type::MAP:
-                return ParseMap(expression);
+                return ParseMap();
             case Token::Type::REDUCE:
-                return ParseReduce(expression);
+                return ParseReduce();
             case Token::Type::DESC:
-                return ParseDesc(expression);
+                return ParseDesc();
             default:
                 break;
         }
     }
-    return expression;
+    OperationDescription op_desc;
+    op_desc.type = OperationType::Continue;
+    return op_desc;
 }
 
-Parser::TokenizedString Parser::ParseMap(const Parser::TokenizedString &expression) {
-    return expression;
+OperationDescription Parser::ParseMap() {
+    OperationDescription op_desc;
+    op_desc.type = OperationType::Map;
+    op_desc.insert_into = ParseInsert();
+    op_desc.select = ParseSelect();
+    op_desc.from = ParseFrom();
+    op_desc.where = ParseWhere();
+    return op_desc;
 }
 
-Parser::TokenizedString Parser::ParseReduce(const Parser::TokenizedString &expression) {
-    return expression;
+std::string Parser::ParseInsert() {
+    if (state_.curr == state_.end || state_.curr->type != Token::Type::Insert) {
+        throw std::runtime_error("Bad syntax near 'insert'");
+    }
+    state_.curr++;
+    if (state_.curr == state_.end || state_.curr->type != Token::Type::Into) {
+        throw std::runtime_error("Bad syntax near 'insert'");
+    }
+    state_.curr++;
+    if (state_.curr == state_.end || state_.curr->type != Token::Type::File) {
+        throw std::runtime_error("Not a filename after 'insert into'");
+    }
+    std::string result = state_.curr->filename;
+    state_.curr++;
+    return result;
 }
 
-Parser::TokenizedString Parser::ParseDesc(const Parser::TokenizedString &expression) {
-    return expression;
+Expression Parser::ParseSelect() {
+    if (state_.curr == state_.end || state_.curr->type != Token::Type::Select) {
+        throw std::runtime_error("Bad syntax near 'select'");
+    }
+    state_.curr++;
+    auto start_sequence = state_.curr;
+    while (state_.curr != state_.end && InExpression(state_.curr->type)) {
+        state_.curr++;
+    }
+    return Expression({start_sequence, state_.curr});
+}
+
+std::string Parser::ParseFrom() {
+    if (state_.curr == state_.end || state_.curr->type != Token::Type::From) {
+        throw std::runtime_error("Bad syntax near 'from'");
+    }
+    state_.curr++;
+    if (state_.curr == state_.end || state_.curr->type != Token::Type::File) {
+        throw std::runtime_error("Not a filename after 'from'");
+    }
+    std::string result = state_.curr->filename;
+    state_.curr++;
+    return result;
+}
+
+Expression Parser::ParseWhere() {
+    if (state_.curr == state_.end || state_.curr->type != Token::Type::Where) {
+        throw std::runtime_error("Bad syntax near 'where'");
+    }
+    state_.curr++;
+    auto start_sequence = state_.curr;
+    while (state_.curr != state_.end && InExpression(state_.curr->type)) {
+        state_.curr++;
+    }
+    return Expression({start_sequence, state_.curr});
+}
+
+OperationDescription Parser::ParseReduce() {
+    OperationDescription op_desc;
+    op_desc.type = OperationType::Reduce;
+    op_desc.insert_into = ParseInsert();
+    op_desc.select = ParseSelect();
+    op_desc.from = ParseFrom();
+    op_desc.where = ParseWhere();
+    return op_desc;
+}
+
+OperationDescription Parser::ParseDesc() {
+    for (auto token = state_.curr; token != state_.end; ++token) {
+        if (token->type != Token::Type::File) {
+            throw std::runtime_error("Can't describe: not a table");
+        }
+    }
+    OperationDescription op_desc;
+    op_desc.type = OperationType::Desc;
+    op_desc.tokens = {state_.curr, state_.end};
+    return op_desc;
 }
 
 Parser::TokenizedString Parser::Tokenize(const std::string &input) {
@@ -120,12 +195,6 @@ Token Parser::ExtractToken(const std::string &word) {
     Token new_token;
     if (tokens_mapping.count(word) != 0) {
         new_token.type = tokens_mapping[word];
-    } else if (word == "true") {
-        new_token.type = Token::Type::Value;
-        new_token.value = Value(true);
-    } else if (word == "false") {
-        new_token.type = Token::Type::Value;
-        new_token.value = Value(false);
     } else if (LooksLikeTableFilename(word)) {
         new_token.type = Token::Type::File;
         new_token.filename = word;
@@ -134,16 +203,29 @@ Token Parser::ExtractToken(const std::string &word) {
         new_token.column_name = word;
     } else {
         new_token.type = Token::Type::Value;
-        char *tmp = nullptr;
-        int value = std::strtol(word.c_str(), &tmp, 10);
-        if (*tmp == '.') {
-            new_token.value = Value(std::strtod(word.c_str(), &tmp));
-        } else {
-            new_token.value = Value(value);
-        }
-        if (*tmp != '\0') {
-            throw std::runtime_error("Bad value: " + word);
-        }
+        new_token.value = Value::FromString(word);
     }
     return new_token;
+}
+
+bool Parser::InExpression(Token::Type type) {
+    return (
+        type == Token::Type::Value ||
+        type == Token::Type::ValuesDelimiter ||
+        type == Token::Type::As ||
+        type == Token::Type::Plus ||
+        type == Token::Type::Minus ||
+        type == Token::Type::MultiplicationSign ||
+        type == Token::Type::DivisionSign ||
+        type == Token::Type::LeftBracket ||
+        type == Token::Type::RightBracket ||
+        type == Token::Type::Less ||
+        type == Token::Type::Greater ||
+        type == Token::Type::Equal ||
+        type == Token::Type::Not ||
+        type == Token::Type::And ||
+        type == Token::Type::Or ||
+        type == Token::Type::Value ||
+        type == Token::Type::Column
+    );
 }

@@ -6,10 +6,11 @@
 class MapReduce {
 public:
     MapReduce();
-
-    bool Execute(const std::string &command);
-    void RunDesc(const Parser::TokenizedString &expression);
-    void RunReduce(const Parser::TokenizedString &expression);
-    void RunMap(const Parser::TokenizedString &expression);
     void RunInterpreter();
+
+private:
+    bool Execute(const std::string &command);
+    void RunDesc(const OperationDescription &op_desc);
+    void RunReduce(const OperationDescription &op_desc);
+    void RunMap(const OperationDescription &op_desc);
 };

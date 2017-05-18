@@ -35,6 +35,10 @@ struct Token {
         DESC,
         CONTINUE,
         QUIT,
+        INSERT_INTO,
+        SELECT,
+        FROM,
+        WHERE,
     };
 
     Type type;
