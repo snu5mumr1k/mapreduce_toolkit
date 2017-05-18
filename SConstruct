@@ -16,7 +16,10 @@ def make_object(source):
     return env.Object(source, CCFLAGS=flags)
 
 objects = [make_object(source) for source in [
-    "src/core/map_reduce.cpp"
+    "src/core/map_reduce.cpp",
+    "src/core/parser.cpp",
+    "src/basic/value.cpp",
+    "src/helpers/validators.cpp",
 ]]
 
 env.Program("bin/map", objects + make_object("src/map.cpp"))
